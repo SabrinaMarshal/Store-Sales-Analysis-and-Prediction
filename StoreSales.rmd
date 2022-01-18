@@ -1,0 +1,210 @@
+---
+title: "J-component: Store Sales Analysis "
+output: html_document
+---
+
+```{r}
+#Packages used
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(forecast)
+library(tseries)
+library(Metrics)
+library(seastests)
+```
+
+```{r}
+#Reading the dataset
+storesales <- read.csv("Store Sales.csv")
+str(storesales)
+head(storesales)
+```
+
+```{r}
+#Performing data cleaning
+storesales$IsHoliday [storesales$IsHoliday == "True"] <- 1
+storesales$IsHoliday [storesales$IsHoliday == "False"] <- 0
+storesales[is.na(storesales)] <- 0
+head(storesales)
+```
+
+```{r}
+#Mean of weekly sales of every month
+monthly_sales <- storesales %>%
+  group_by(mon=month(Date)) %>%
+  summarize(month_mean=mean(Weekly_Sales))
+monthly_sales
+barplot(monthly_sales$month_mean,names=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")) 
+#Monthly sales is highest during November and December (due to the holidays - Thanksgiving and Christmas)
+```
+
+```{r}
+#Sum of the sales of all stores for every week
+sales_sum <- storesales %>%
+  group_by(Date) %>%
+  summarize(sum=sum(Weekly_Sales))
+sales_sum
+ggplot(data = sales_sum, aes(x = Date, y = sum, group=1)) +geom_line()+geom_point()
+#The weekly sales are much higher at the end of year, during the holidays
+```
+
+```{r}
+#Plot of the time series object of the sum of weekly sales
+fore_data <- ts(sales_sum$sum, start=decimal_date(ymd("2010-02-05")),frequency=52)
+plot(fore_data)
+```
+
+```{r}
+#Sum of weekly sales of all stores according to year
+ggseasonplot(fore_data, year.labels=TRUE, year.labels.left=TRUE)
+#The weekly sales increases at the end of every year
+```
+
+```{r}
+#Kruskall Wallis seasonality test
+kw(fore_data, freq = 52)
+#p-value is small enough that the null hypothesis is rejected
+isSeasonal(fore_data, test = "kw", freq = 52)
+#Time series data is seasonal
+```
+
+### Forecasting for a single store
+```{r}
+#Sum of weekly sales of store 15
+store1 <- filter(storesales,Store==15)
+store1_sum <- store1 %>%
+  group_by(Date) %>%
+  summarize(sum=sum(Weekly_Sales))
+head(store1_sum)
+```
+
+```{r}
+#Plot of the time series object of the sum of weekly sales of a single store
+fore_data1 <- ts(store1_sum$sum, start=decimal_date(ymd("2010-02-05")),frequency=52)
+plot(fore_data1)
+```
+
+```{r}
+#Splitting the data into training and testing data, to evaluate the performance of different models
+#Training data
+train1 <- window(fore_data1, start=decimal_date(ymd("2010-02-05")),end=decimal_date(ymd("2012-02-10")))
+plot(train1)
+```
+
+```{r}
+#Test data
+test1 <- window(fore_data1, start=decimal_date(ymd("2012-02-10")),end=decimal_date(ymd("2012-10-26")))
+plot(test1)
+```
+
+### Simple Exponential smoothing
+```{r}
+exp <- ses(train1, h = 37)
+#Test data consists of 37 weeks of data
+plot(exp)
+rmse(exp$mean,test1)
+#High RMSE value
+```
+
+### Holt Winters
+```{r}
+#Triple exponential smoothing, used for models with seasonality
+hw1 <- HoltWinters(train1)
+plot(hw1)
+#Fits the data better
+hfore1 <- forecast(hw1,37)
+plot(hfore1)
+rmse(hfore1$mean,test1)
+#Low RMSE value
+```
+
+### Forecasting with seasonally adjusted data
+```{r}
+seas <- decompose(fore_data1)
+plot(seas)
+#Shows the seasonality and trend
+seasadj <- fore_data1-seas$seasonal
+plot(seasadj)
+#Seasonality in the time series is removed
+trainadj <- window(seasadj, start=decimal_date(ymd("2010-02-05")),end=decimal_date(ymd("2012-02-10")))
+stlf_sales1 <- stlf(trainadj,h=37)
+#stlf works on seasonally adjusted data
+plot(stlf_sales1)
+rmse(stlf_sales1$mean,test1)
+#Has a higher rmse value as the seasonality is not taken into account
+```
+
+### Seasonal naive forecasting model 
+```{r}
+sn_fit1 <- snaive(train1,h=37)
+#snaive uses the corresponding season from the last year of the data
+plot(sn_fit1)
+rmse(sn_fit1$mean,test1)
+#Lower RMSE value as seasonality is taken into consideration
+```
+
+### ARIMA
+```{r}
+#Auto Regressive(p) Integrated(d) Moving Average(q)
+#Supports non stationary data
+fit1 <- auto.arima(train1)
+fit1
+#Auto arima estimates the best model to be (p=0,d=0,q=1) with seasonal component being (P=0,D=1,Q=0)
+b1 <- forecast(fit1,37)
+plot(b1)
+rmse(b1$mean,test1)
+#Has a moderate RMSE value
+#Therefore the Holt winters model has the lowest RMSE value and predicts the data most accurately
+```
+
+### Forecasting using overall weekly data
+```{r}
+fore_data <- ts(sales_sum$sum, start=decimal_date(ymd("2010-02-05")),frequency=52)
+plot(fore_data)
+```
+
+### Simple Exponential smoothing
+```{r}
+exp <- ses(fore_data, h = 70)
+exp
+plot(exp)
+```
+
+### Holt Winters
+```{r}
+hw <- HoltWinters(fore_data)
+plot(hw)
+hfore <- forecast(hw,70)
+hfore
+plot(hfore)
+```
+
+### Forecasting with seasonally adjusted data
+```{r}
+seas <- decompose(fore_data)
+plot(seas)
+seasadj <- fore_data-seas$seasonal
+plot(seasadj)
+stlf_sales <- stlf(seasadj,h=70)
+stlf_sales
+plot(stlf_sales)
+```
+
+### Seasonal naive forecasting model 
+```{r}
+sn_fit <- snaive(fore_data,h=70)
+sn_fit
+plot(sn_fit)
+```
+
+### ARIMA
+```{r}
+fit <- auto.arima(fore_data)
+fit 
+b <- forecast(fit,70)
+b
+plot(b)
+#The time series models show the forecasts of weekly sales increasing during the end of the year holidays, as is expected
+```
+
