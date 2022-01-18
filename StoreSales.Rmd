@@ -1,0 +1,548 @@
+---
+title: "Store Sales Analysis and Prediction"
+date: "12/6/2021"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+## R Markdown
+### importing csv file and finding na values from it.
+
+```{r setup, include=FALSE}
+storesales <- read.csv("StoreSales.csv")
+str(storesales)
+head(storesales)
+sum(is.na(storesales))
+```
+
+### Converting False to 0 and true to 1
+```{r}
+storesales$IsHoliday [storesales$IsHoliday == "True"] <- 1
+storesales$IsHoliday [storesales$IsHoliday == "False"] <- 0
+unique(storesales$IsHoliday)
+```
+**Since we cannot visualize for character values, the true and false are turned to 0,1 respectively.if there is a holiday then it is recorded as 1 and vice-versa"**
+
+### Grouping data w.r.t Store number and the date purchased
+```{r}
+library(dplyr)
+storesales1 <- read.csv("Weeklysales.csv")
+storesales1 %>% 
+  group_by(Store, Date) %>% 
+  summarize(Weekly_Sales = sum(Weekly_Sales))
+head(storesales1)
+```
+**Here the weekly sales data has been imported to storesales1 and the weekly sales are summed up grouped by the dates.**
+
+
+### Date splitting
+```{r}
+library(tidyr)
+storesales1$Date <- as.Date(storesales1$Date, format = "%Y-%m-%d")
+storesales1 <- separate(storesales1, "Date", c("Year", "Month", "Day"), sep = '-')
+```
+**Formatting the date w.r.t day, month and year**
+ 
+```{r}
+storesales1$IsHoliday [storesales1$IsHoliday == "True"] <- 1
+storesales1$IsHoliday [storesales1$IsHoliday == "False"] <- 0
+```
+
+
+### Removing na values and dividing the dataset
+```{r}
+storesales1[is.na(storesales1)] <- 0
+storesales1 <- head(storesales1,85000)
+```
+**Since the dataset is vast and can only be visualized vaguely the top 85,000 rows are extracted. the number of na values are found to be around 20000 and are converted to 0. "we cannot impute meean or median"**
+
+### Summary()
+```{r}
+summary(storesales1)
+```
+**Various summaries like mean, median, quartiles are showed in a single view**
+
+### Using naniar package to visualise na values
+**With the package naniar it is easier to plot the missing values which are found to be 0**
+```{r}
+library(naniar)
+gg_miss_var(storesales1)
+```
+
+
+### changing the date to numeric
+```{r}
+storesales1$Day <- as.numeric(storesales1$Day, replace = TRUE)
+str(storesales1)
+```
+
+### Number of objects
+**Displaying the total number of values a particular attribute is carrying.**
+```{r}
+storesales1 %>% summarize(Total_stores = n_distinct(Store))
+storesales1 %>% summarize(Total_Dept = n_distinct(Dept))
+storesales1 %>% summarize(Total_Years = n_distinct(Year))
+```
+
+
+### Scatter Plot with color
+**We can infer that the november month has the highest week sales**
+```{r}
+library(ggplot2)
+ggplot(data=storesales1, mapping=aes(x=Weekly_Sales,y=Month),fill=weekday)+geom_point()
+```
+
+### Histograms in a single frame
+**The frequency of all the selected attributes are comparable side by side**
+```{r}
+par(mfrow=c(3,2))
+hist(storesales1$Store, col = 'blue', main = "Stores")
+hist(storesales1$Dept, col = 'blue', main = "Store Size")
+hist(storesales1$Temperature, col = 'blue', main = "Temperature")
+hist(storesales1$Fuel_Price, col = 'blue', main = "Fuel Price")
+hist(storesales1$CPI, col = 'blue', main = "CPI")
+hist(storesales1$Unemployment, col = 'blue', main = "Unemployment")
+```
+
+### Scatterplot through shape and size
+**We can see in which store the unemployment is high which is not fruitful. The type B unemployment is high in store 12. this affects the product consumity.**
+```{r}
+ggplot(storesales1,aes(x=Store,y=Unemployment,shape=Type))+geom_point(aes(color=Type,size=1))
+```
+
+### Frequncy
+```{r}
+table(storesales1$Store)
+table(storesales1$Dept)
+table(storesales1$Year)
+table(storesales1$Month)
+table(storesales1$Day)
+
+```
+
+### Piechart
+**The distribution of types of stores is visualized saying that A type is more common**
+```{r}
+storetype <- table(storesales1$Type)
+pie(storetype)
+```
+
+**The unemployment and fuel prices play a mojor role in sales. we can see that the rise in the fuel price decreases the sales as people prefer not to come often for purchasing common items. **
+```{r}
+library(ggplot2)
+ggplot(storesales1, aes(x=Fuel_Price,fill=Year))+geom_bar() +ggtitle("fuel prices")
+ggplot(storesales1,aes(x=Unemployment,y=Year))+geom_point() +ggtitle("Store Types")
+```
+
+### Density plot
+```{r}
+library("lattice")
+densityplot(storesales1$Temperature)
+```
+
+**Stores pertaining to type A are displayed**
+```{r}
+demo= table(storesales1$Store)
+demo
+library(dplyr)
+atype <- storesales1 %>%
+  filter(Type== "A")
+View(atype$Store)
+```
+
+### Bar chart of stores varied with the parameter type
+**The number of stores in cities are counted which helps in establishing the stores which are lesser number in the city.**
+```{r}
+ggplot(storesales1, aes(x=Store,fill= Type))+geom_bar(position='stack') +ggtitle("Store Types")
+```
+
+### Frequncy
+**This is also similar to table function but here we use aggregate and sum to total. **
+```{r}
+aggregate(storesales1$Weekly_Sales, by=list(Type=storesales1$Type), FUN=sum)
+```
+
+### Histogram with horizontal distributions
+**Comparative study on which type of store is performing well**
+```{r}
+ggplot(storesales1, aes(x = Size, fill = Type)) + geom_histogram(binwidth = 10000) + facet_grid(Type~.)
+```
+
+### Histogram of weekly sales with types
+**Same thing like the above is performed with weekly sales. it helps to know which stores are selling more goods and what is not.**
+```{r}
+ggplot(storesales1,aes(x = Weekly_Sales)) + geom_histogram(color='green',fill='yellow') + facet_grid(Type~.) + scale_x_log10()
+```
+
+### Month vs weekly sales
+**scale_fill_manual is used to set colors manually**
+```{r}
+mancolr <- ggplot(storesales1, aes(x = Month,y = Weekly_Sales,fill= Year )) + 
+  geom_col() +
+  facet_wrap(~Year) + 
+  ggtitle("Weekly Sales Distribution")
+
+mancolr + scale_fill_manual(values=c("palevioletred", "tan1", "brown"))
+```
+
+### Line chart
+**weekly sales during months is calculated on holidays showing that people purchased more items on holidays and discounts**
+```{r}
+ggplot(storesales1,aes(Weekly_Sales,Month, color= IsHoliday))+ geom_line()
+```
+
+### Sales trend across month Sales seems to be high at 1st month,as indicated by boxplot.
+
+```{r}
+ ggplot(head(storesales1,20),aes(x = Month, y = Weekly_Sales)) + geom_boxplot(width=0.5,lwd=0.5, color= "magenta")+ labs(subtitle="Boxplot")
+```
+
+### Adding jitter to the same
+```{r}
+ ggplot(head(storesales1,20),aes(x = Month, y = Weekly_Sales, fill= Month)) + geom_boxplot(width=0.5,lwd=0.5)+ labs(subtitle="Boxplot with jitter")+
+  geom_jitter(width=0.15)
+```
+
+### Cpi trend for stores 1,2
+```{r}
+storesales %>% 
+  filter(Store == c(1,2)) %>% 
+  ggplot(aes(x = Date, y = CPI, col = Store)) + geom_line()
+```
+
+### Forecasting
+**short-term forecasting for exponential smoothening( level, trend and seasonal components)**
+
+```{r}
+fore_data <- ts(storesales1$Weekly_Sales, start=2010, end=2012,frequency=12)
+plot(fore_data)
+hw <- HoltWinters(fore_data)
+plot(hw)
+
+```
+### Summary
+**Summary stats of holidays, like which holiday discounts are showing a positive.**
+```{r}
+descol <- c("MarkDown1", "MarkDown2","MarkDown3","MarkDown4","MarkDown5", "Size","CPI","Weekly_Sales");
+summary(storesales1[descol])
+```
+
+### Variance and S.D.
+```{r}
+var(storesales1$Weekly_Sales)
+sd(storesales1$Weekly_Sales)
+var(storesales1$Size)
+sd(storesales1$Size)
+```
+
+### Skewness and Kurtosis
+**Our distribution is having heavier tails and the positive skewness indicates that sales during the markdown is not great.**
+```{r}
+library(e1071)
+skewness(storesales1$MarkDown1)
+kurtosis(storesales1$MarkDown1)
+```
+
+
+### Graphical Representation of correlation
+```{r}
+subset1 <- subset(storesales1, select=c("Size","Weekly_Sales","Temperature","Fuel_Price",
+"MarkDown1","MarkDown2","MarkDown3","MarkDown4","MarkDown5","CPI","Unemployment"))
+res <- cor(subset1)
+
+library(corrplot)
+corrplot(res, type = "upper", order = "hclust", tl.col = "black", tl.srt = 45)
+
+```
+
+### Heatmap
+```{r}
+heatmap(x = res, symm = TRUE )
+```
+
+### Correlation
+```{r}
+cor(storesales1$Weekly_Sales,storesales1$MarkDown1,use="everything",method="pearson")
+cor(storesales1$Weekly_Sales,storesales1$MarkDown2,use="everything",method="pearson")
+cor(storesales1$Weekly_Sales,storesales1$MarkDown3,use="everything",method="pearson")
+cor(storesales1$Weekly_Sales,storesales1$MarkDown4,use="everything",method="pearson")
+cor(storesales1$Weekly_Sales,storesales1$MarkDown5,use="everything",method="pearson")
+cor(storesales1$MarkDown1,storesales1$MarkDown2,use="everything",method="pearson")
+cor(storesales1$MarkDown1,storesales1$MarkDown3,use="everything",method="pearson")
+cor(storesales1$MarkDown1,storesales1$MarkDown4,use="everything",method="pearson")
+cor(storesales1$MarkDown1,storesales1$MarkDown5,use="everything",method="pearson")
+cor(storesales1$MarkDown2,storesales1$MarkDown3,use="everything",method="pearson")
+cor(storesales1$MarkDown2,storesales1$MarkDown4,use="everything",method="pearson")
+cor(storesales1$MarkDown2,storesales1$MarkDown5,use="everything",method="pearson")
+cor(storesales1$MarkDown3,storesales1$MarkDown4,use="everything",method="pearson")
+cor(storesales1$MarkDown3,storesales1$MarkDown4,use="everything",method="pearson")
+cor(storesales1$MarkDown4,storesales1$MarkDown5,use="everything",method="pearson")
+```
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(caret)
+```
+
+```{r}
+stores <- read.csv("WeeklySales.csv")
+View(stores)
+stores %>% 
+  group_by(Store, Date) %>% 
+  summarize(Weekly_Sales = sum(Weekly_Sales))
+
+stores[is.na(stores)] <- 0
+input<-stores[,c("Weekly_Sales","Temperature","Fuel_Price","MarkDown1","MarkDown2","MarkDown3","MarkDown4","MarkDown5","CPI","Unemployment")]
+View(input)
+head(input)
+ model <- lm(Weekly_Sales~Temperature+Fuel_Price+MarkDown1+MarkDown2+MarkDown3+MarkDown4+MarkDown5+CPI+Unemployment, data = input)
+ print(model)
+ a <- coef(model)[1]
+ print(a)
+ XTemperature <- coef(model)[2]
+ XFuel_Price <- coef(model)[3]
+ XMarkDown1 <- coef(model)[4]
+ XMarkDown2 <- coef(model)[5]
+ XMarkDown3 <- coef(model)[6]
+ XMarkDown4 <- coef(model)[7]
+ XMarkDown5 <- coef(model)[8]
+  XCPI <- coef(model)[9]
+  XUnemployment <- coef(model)[10]
+   print(XTemperature)
+   print(XFuel_Price)
+   print(XMarkDown1)
+   print(XMarkDown2)
+   print(XMarkDown3)
+   print(XMarkDown4)
+   print(XMarkDown5)
+   print(XCPI)
+   print(XUnemployment)
+   # MULTIPLE LINEAR REGESSION EQUATION FORMED
+   #TAKING ARBITARY VALUES FOR PREDICTION :
+   x1=39.26
+   x2=3.443
+   x3=17524.35
+   x4=3765.22
+   x5=12.24
+   x6=3988.19
+   x7=1331.4
+   x8=227.440
+   x9=8.345
+   # Substituting values in the equation
+   y=a+XTemperature*x1+XFuel_Price*x2+XMarkDown1*x3+XMarkDown2*x4+XMarkDown3*x5+XMarkDown4*x6+XMarkDown5*x7+XCPI*x8+XUnemployment*x9
+   # WEEKLY SALES FOR SUCH A CONDITION WILL BE
+   print("Final Weekly sales Value")
+   print(y)
+   #Weekly Sales Values after providing arbitrary values is displayed as output.
+```
+
+```{r}
+#Packages used
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(forecast)
+library(tseries)
+library(Metrics)
+library(seastests)
+```
+
+```{r}
+#Reading the dataset
+storesales <- read.csv("WeeklySales.csv")
+str(storesales)
+head(storesales)
+```
+
+```{r}
+#Performing data cleaning
+storesales$IsHoliday [storesales$IsHoliday == "True"] <- 1
+storesales$IsHoliday [storesales$IsHoliday == "False"] <- 0
+storesales[is.na(storesales)] <- 0
+head(storesales)
+```
+
+```{r}
+#Mean of weekly sales of every month
+monthly_sales <- storesales %>%
+  group_by(mon=month(Date)) %>%
+  summarize(month_mean=mean(Weekly_Sales))
+monthly_sales
+barplot(monthly_sales$month_mean,names=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")) 
+#Monthly sales is highest during November and December (due to the holidays - Thanksgiving and Christmas)
+```
+
+```{r}
+#Sum of the sales of all stores for every week
+sales_sum <- storesales %>%
+  group_by(Date) %>%
+  summarize(sum=sum(Weekly_Sales))
+sales_sum
+ggplot(data = sales_sum, aes(x = Date, y = sum, group=1)) +geom_line()+geom_point()
+#The weekly sales are much higher at the end of year, during the holidays
+```
+
+```{r}
+#Plot of the time series object of the sum of weekly sales
+fore_data <- ts(sales_sum$sum, start=decimal_date(ymd("2010-02-05")),frequency=52)
+plot(fore_data)
+```
+
+```{r}
+#Sum of weekly sales of all stores according to year
+ggseasonplot(fore_data, year.labels=TRUE, year.labels.left=TRUE)
+#The weekly sales increases at the end of every year
+```
+
+```{r}
+#Kruskall Wallis seasonality test
+kw(fore_data, freq = 52)
+#p-value is small enough that the null hypothesis is rejected
+isSeasonal(fore_data, test = "kw", freq = 52)
+#Time series data is seasonal
+```
+
+### Forecasting for a single store
+```{r}
+#Sum of weekly sales of store 15
+store1 <- filter(storesales,Store==15)
+store1_sum <- store1 %>%
+  group_by(Date) %>%
+  summarize(sum=sum(Weekly_Sales))
+head(store1_sum)
+```
+
+```{r}
+#Plot of the time series object of the sum of weekly sales of a single store
+fore_data1 <- ts(store1_sum$sum, start=decimal_date(ymd("2010-02-05")),frequency=52)
+plot(fore_data1)
+```
+
+```{r}
+#Splitting the data into training and testing data, to evaluate the performance of different models
+#Training data
+train1 <- window(fore_data1, start=decimal_date(ymd("2010-02-05")),end=decimal_date(ymd("2012-02-10")))
+plot(train1)
+```
+
+```{r}
+#Test data
+test1 <- window(fore_data1, start=decimal_date(ymd("2012-02-10")),end=decimal_date(ymd("2012-10-26")))
+plot(test1)
+```
+
+### Simple Exponential smoothing
+```{r}
+exp <- ses(train1, h = 37)
+#Test data consists of 37 weeks of data
+plot(exp)
+rmse(exp$mean,test1)
+#High RMSE value
+```
+
+### Holt Winters
+```{r}
+#Triple exponential smoothing, used for models with seasonality
+hw1 <- HoltWinters(train1)
+plot(hw1)
+#Fits the data better
+hfore1 <- forecast(hw1,37)
+plot(hfore1)
+rmse(hfore1$mean,test1)
+#Low RMSE value
+```
+
+### Forecasting with seasonally adjusted data
+```{r}
+seas <- decompose(fore_data1)
+plot(seas)
+#Shows the seasonality and trend
+seasadj <- fore_data1-seas$seasonal
+plot(seasadj)
+#Seasonality in the time series is removed
+trainadj <- window(seasadj, start=decimal_date(ymd("2010-02-05")),end=decimal_date(ymd("2012-02-10")))
+stlf_sales1 <- stlf(trainadj,h=37)
+#stlf works on seasonally adjusted data
+plot(stlf_sales1)
+rmse(stlf_sales1$mean,test1)
+#Has a higher rmse value as the seasonality is not taken into account
+```
+
+### Seasonal naive forecasting model 
+```{r}
+sn_fit1 <- snaive(train1,h=37)
+#snaive uses the corresponding season from the last year of the data
+plot(sn_fit1)
+rmse(sn_fit1$mean,test1)
+#Lower RMSE value as seasonality is taken into consideration
+```
+
+### ARIMA
+```{r}
+#Auto Regressive(p) Integrated(d) Moving Average(q)
+#Supports non stationary data
+fit1 <- auto.arima(train1)
+fit1
+#Auto arima estimates the best model to be (p=0,d=0,q=1) with seasonal component being (P=0,D=1,Q=0)
+b1 <- forecast(fit1,37)
+plot(b1)
+rmse(b1$mean,test1)
+#Has a moderate RMSE value
+#Therefore the Holt winters model has the lowest RMSE value and predicts the data most accurately
+```
+
+### Forecasting using overall weekly data
+```{r}
+fore_data <- ts(sales_sum$sum, start=decimal_date(ymd("2010-02-05")),frequency=52)
+plot(fore_data)
+```
+
+### Simple Exponential smoothing
+```{r}
+exp <- ses(fore_data, h = 70)
+exp
+plot(exp)
+```
+
+### Holt Winters
+```{r}
+hw <- HoltWinters(fore_data)
+plot(hw)
+hfore <- forecast(hw,70)
+hfore
+plot(hfore)
+```
+
+### Forecasting with seasonally adjusted data
+```{r}
+seas <- decompose(fore_data)
+plot(seas)
+seasadj <- fore_data-seas$seasonal
+plot(seasadj)
+stlf_sales <- stlf(seasadj,h=70)
+stlf_sales
+plot(stlf_sales)
+```
+
+### Seasonal naive forecasting model 
+```{r}
+sn_fit <- snaive(fore_data,h=70)
+sn_fit
+plot(sn_fit)
+```
+
+### ARIMA
+```{r}
+fit <- auto.arima(fore_data)
+fit 
+b <- forecast(fit,70)
+b
+plot(b)
+#The time series models show the forecasts of weekly sales increasing during the end of the year holidays, as is expected
+```
+
+
